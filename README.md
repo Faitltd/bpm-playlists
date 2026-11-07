@@ -1,88 +1,86 @@
-# bpm-playlists
+# BPM Playlists
 
-Sort an Apple Music (formerly iTunes) playlist into activity playlists by BPM, or build a playlist of songs that match one song's tempo. Runs on macOS with the built-in Music app. Free, no installs, no accounts.
+A free Mac app that sorts your Apple Music playlists by BPM, builds activity playlists (Relax, Yoga, Walk, Workout, Run, HIIT), and recommends songs that match a song's tempo and genre.
 
-## What it does
+BPM data by [GetSongBPM](https://getsongbpm.com).
 
-**Activity playlists.** Reads one of your playlists and splits it by tempo, each sorted slowest to fastest:
+## Features
 
-| Playlist | BPM |
-|---|---|
-| BPM: Relax | under 90 |
-| BPM: Yoga | 90 to 109 |
-| BPM: Walk | 110 to 124 |
-| BPM: Workout | 125 to 139 |
-| BPM: Run | 140 to 159 |
-| BPM: HIIT | 160 and up |
-| BPM: Unknown | songs with no BPM |
-
-**Match mode.** Name a song and get `BPM Match: <song>`: that song first, then every song within 5 BPM of it, closest first. Songs at half or double the tempo also count.
-
-**BPM detection.** Songs with an empty BPM field are measured from the audio file, and the result is saved to the song's Get Info.
-
-## Requirements
-
-- macOS with the Music app
-- Nothing to install. Uses `osascript` and `afconvert`, both built into macOS.
+- **See every song's BPM** in any playlist. Edit a BPM by typing it in.
+- **Fill missing BPMs** by measuring the audio of songs you own as files, or by looking them up online for any song, including Apple Music streaming songs. BPMs are saved to the song in Music.
+- **Build activity playlists.** One click splits a playlist into BPM ranges, each sorted slowest to fastest. Edit the activities and ranges in the app.
+- **Match a song.** Pick a song and get a `BPM Match: <song>` playlist of songs within a few BPM of it. Half and double tempo count too.
+- **Recommendations:**
+  - **From your library:** songs you already have in a similar genre with a matching BPM. Check them and add them to any playlist.
+  - **New songs:** songs from the GetSongBPM database at a matching BPM in a similar genre. Click **Open** to see the song in Apple Music, then click **+** there to add it.
 
 ## Install
 
-1. Click **Code**, then **Download ZIP** on this page.
-2. Double-click the ZIP in your Downloads folder to unzip it.
+1. Go to [Releases](https://github.com/Faitltd/bpm-playlists/releases) and download **BPM-Playlists-mac.zip**.
+2. Double-click the zip to unzip it.
+3. Drag **BPM Playlists** into your **Applications** folder.
+4. The first time, right-click **BPM Playlists** and click **Open**, then click **Open** again. (The app is free and not notarized by Apple, so macOS asks once.)
+5. When asked if BPM Playlists may control Music, click **OK**.
 
-Or clone it:
+Requires macOS 12 or later.
 
-```
-git clone https://github.com/Faitltd/bpm-playlists.git
-```
+## Set up online features
+
+Looking up BPMs and finding new songs uses the free GetSongBPM API.
+
+1. Go to [getsongbpm.com/api](https://getsongbpm.com/api) and request a free API key.
+2. In BPM Playlists, click **Settings**.
+3. Paste the key into **GetSongBPM API key** and click **Save**.
+
+Your key is stored only on your Mac.
 
 ## Use
 
-1. Open **Terminal** (press **Cmd+Space**, type `Terminal`, press **Return**).
-2. Type `cd ` (with a space), drag the unzipped `bpm-playlists` folder into the Terminal window, and press **Return**.
-3. Run one of these, replacing the names with your own:
+1. Pick a playlist on the left.
+2. Songs without a BPM are outlined. Click **Look up BPMs online** or **Measure from audio** to fill them, or type a BPM in.
+3. Click **Build activity playlists** to create the BPM playlists.
+4. Click **Match** next to a song to:
+   - Create a match playlist.
+   - See matching songs from your library and add them to a playlist.
+   - Click **Find songs online** for new songs, then **Open** to view one in Apple Music.
 
-Activity playlists:
+New playlists appear in the Music app sidebar under **Playlists**. Running a build again replaces the playlists it made before. Your songs and other playlists are never changed, except that BPMs you add are saved to the songs.
+
+## Notes
+
+- Apple Music streaming songs are copy-protected, so their audio cannot be measured. Use **Look up BPMs online** or type the BPM.
+- The app cannot add catalog songs to your library by itself. That needs a paid Apple developer account. **Open** takes you to the song in Apple Music instead.
+- Online matches are only as good as the GetSongBPM catalog. Newer or less-known songs may be missing.
+
+## Command-line script
+
+`bpm-playlists.js` does the activity and match playlists without the app:
 
 ```
 osascript -l JavaScript bpm-playlists.js "My Playlist"
-```
-
-Match one song:
-
-```
 osascript -l JavaScript bpm-playlists.js "My Playlist" --match "Song Title"
 ```
 
-4. The first time, macOS asks if Terminal may control Music. Click **OK**.
-5. Open Music. The new playlists are in the sidebar under **Playlists**.
+Edit the settings at the top of the file to change activities and ranges.
 
-Type names exactly as they appear in Music. Running the script again rebuilds the `BPM: ...` playlists. Your songs and other playlists are never changed, except that a measured BPM is saved to the song.
+## Build from source
 
-## Apple Music subscription songs
+Requires Xcode command line tools and Node.js.
 
-Songs streamed or downloaded through an Apple Music subscription are copy-protected, so their audio cannot be measured. They go to **BPM: Unknown** unless the song already has a BPM. To add one:
+```
+git clone https://github.com/Faitltd/bpm-playlists.git
+cd bpm-playlists
+./build.sh
+```
 
-1. Right-click the song, click **Get Info**, then the **Info** tab.
-2. Type the BPM in the **BPM** box and click **OK**.
-3. Run the script again.
+The app is written to `dist/BPM Playlists.app`, with a zip at `dist/BPM-Playlists-mac.zip`.
 
-To find a song's BPM, search it on [GetSongBPM](https://getsongbpm.com), [SongBPM](https://songbpm.com) or [Beatport](https://www.beatport.com).
+Project layout:
 
-Songs you own as files (imported CDs, iTunes Store purchases, MP3s) are measured automatically.
-
-## Customize
-
-Open `bpm-playlists.js` in TextEdit and edit the settings at the top:
-
-- `ACTIVITIES`: playlist names and BPM ranges (min included, max excluded)
-- `MATCH_TOLERANCE`: how close a match must be, in BPM (default 5)
-- `MATCH_HALF_DOUBLE`: also match half and double tempo (default true)
-- `SAVE_DETECTED_BPM`: save measured BPMs to songs (default true)
-
-## How BPM detection works
-
-The middle 60 seconds of the song is converted to mono 11 kHz audio with `afconvert`. The script builds an onset envelope from changes in loudness, then autocorrelates it across 60 to 200 BPM, weighted toward common tempos, with a check for half-time readings.
+- `app/main.swift`: the Mac window and the bridge between the interface and macOS
+- `app/backend.js`: talks to the Music app (JavaScript for Automation)
+- `ui/`: the interface, written in Svelte
+- `bpm-playlists.js`: the standalone command-line script
 
 ## License
 

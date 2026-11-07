@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>BPM Playlists</string>
+    <key>CFBundleDisplayName</key>
+    <string>BPM Playlists</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.faitltd.bpmplaylists</string>
+    <key>CFBundleExecutable</key>
+    <string>BPMPlaylists</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.0.0</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>12.0</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>NSAppleEventsUsageDescription</key>
+    <string>BPM Playlists reads your playlists and creates new ones in the Music app.</string>
+    <key>NSHumanReadableCopyright</key>
+    <string>MIT License. BPM data by GetSongBPM.com.</string>
+</dict>
+</plist>
