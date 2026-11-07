@@ -24,8 +24,7 @@ export const music = (op, data = {}) => call('music', { op, data });
 
 export async function httpJson(url) {
   const res = await call('http', { url });
-  if (res.status === 401 || res.status === 403) throw new Error('GetSongBPM rejected the API key. Check it in Settings.');
-  if (res.status === 429) throw new Error('GetSongBPM rate limit reached. Wait a minute and try again.');
+  if (res.status === 429) throw new Error('Too many requests. Wait a minute and try again.');
   if (res.status < 200 || res.status >= 300) throw new Error('Request failed (' + res.status + ').');
   try { return JSON.parse(res.body); } catch (e) { throw new Error('Unexpected response from server.'); }
 }

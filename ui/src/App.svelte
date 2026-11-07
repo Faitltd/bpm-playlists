@@ -3,7 +3,7 @@
   import { SvelteSet } from 'svelte/reactivity';
   import { music, loadSettings, saveSettings, openUrl } from './lib/bridge.js';
   import { genreScore } from './lib/genre.js';
-  import { lookupBpm, recommend, openInAppleMusic } from './lib/online.js';
+  import { findSong, measurePreviews, recommend, openInAppleMusic } from './lib/online.js';
 
   const DEFAULT_ACTIVITIES = [
     { name: 'BPM: Relax', min: 0, max: 90 },
@@ -15,8 +15,6 @@
   ];
 
   let settings = $state({
-    apiKey: '',
-    apiBase: 'https://api.getsong.co',
     tolerance: 5,
     halfDouble: true,
     unknownName: 'BPM: Unknown',
@@ -47,6 +45,7 @@
   let onlineRecs = $state([]);
   let onlineState = $state('idle'); // idle | loading | done | error
   let onlineError = $state('');
+  let onlineProgress = $state(null);
 
   const selected = $derived(playlists.find((p) => p.id === selectedId));
   const filteredPlaylists = $derived(
@@ -183,32 +182,34 @@
     });
   }
 
-  function needKey() {
-    if (settings.apiKey) return false;
-    notify('Add your free GetSongBPM API key in Settings first.', 'error');
-    openSettings();
-    return true;
-  }
-
+  // Find each song on Deezer; use Deezer's BPM if it has one, otherwise measure the preview.
   async function lookupMissing(list, label) {
-    if (needKey()) return;
     await task(label, async () => {
       progress = { done: 0, total: list.length };
       const found = [];
+      const toMeasure = [];
       for (const t of list) {
         try {
-          const bpm = await lookupBpm(settings, t.name, t.artist);
-          if (bpm) { t.bpm = bpm; found.push({ id: t.id, bpm }); }
+          const hit = await findSong(t.name, t.artist);
+          if (hit?.bpm) { t.bpm = hit.bpm; found.push({ id: t.id, bpm: hit.bpm }); progress.done++; }
+          else if (hit?.preview) toMeasure.push({ key: t.id, url: hit.preview, t });
+          else progress.done++;
         } catch (e) {
-          if (/API key|rate limit/i.test(e.message)) throw e;
+          if (/Too many/i.test(e.message)) throw e;
+          progress.done++;
         }
-        progress.done++;
         if (found.length >= 20) await music('setBpms', { items: found.splice(0) });
-        await new Promise((r) => setTimeout(r, 150));
       }
+      await measurePreviews(toMeasure, (res) => {
+        for (const r of res) {
+          const item = toMeasure.find((x) => x.key === r.key);
+          if (item && r.bpm) { item.t.bpm = r.bpm; found.push({ id: item.t.id, bpm: r.bpm }); }
+          progress.done++;
+        }
+      });
       if (found.length) await music('setBpms', { items: found });
       const total = list.filter((t) => t.bpm).length;
-      notify('Found BPM for ' + total + ' of ' + list.length + ' songs. Saved to Music.');
+      notify('Found BPM for ' + total + ' of ' + list.length + ' songs. Saved to Music. Check any that look off.');
     });
     // keep playlist rows and library index in sync
     if (libIndex) for (const t of tracks) {
@@ -269,31 +270,38 @@
 
   async function loadOnline() {
     if (!seed?.bpm) return notify('Give this song a BPM first.', 'error');
-    if (needKey()) return;
+    const forSeed = seed.id;
     onlineState = 'loading';
     onlineError = '';
+    onlineRecs = [];
+    onlineProgress = null;
     try {
-      onlineRecs = await recommend(settings, seed, {
+      const res = await recommend($state.snapshot(seed), {
         tolerance: settings.tolerance,
         halfDouble: settings.halfDouble,
         excludeKeys: (libIndex || []).map((t) => ({ name: t.name, artist: t.artist }))
+      }, (list, done, total) => {
+        if (seed?.id !== forSeed) return;
+        onlineRecs = list;
+        onlineProgress = { done, total };
       });
+      if (seed?.id !== forSeed) return;
+      onlineRecs = res;
       onlineState = 'done';
     } catch (e) {
+      if (seed?.id !== forSeed) return;
       onlineError = e.message;
       onlineState = 'error';
     }
   }
 
   function openSettings() {
-    draft = { apiKey: settings.apiKey, apiBase: settings.apiBase, tolerance: settings.tolerance, halfDouble: settings.halfDouble, unknownName: settings.unknownName, perSource: settings.perSource };
+    draft = { tolerance: settings.tolerance, halfDouble: settings.halfDouble, unknownName: settings.unknownName, perSource: settings.perSource };
     showSettings = true;
   }
 
   function saveSettingsDraft() {
     Object.assign(settings, {
-      apiKey: draft.apiKey.trim(),
-      apiBase: draft.apiBase.trim() || 'https://api.getsong.co',
       tolerance: Math.max(1, Math.min(20, Math.round(Number(draft.tolerance) || 5))),
       halfDouble: !!draft.halfDouble,
       unknownName: draft.unknownName.trim(),
@@ -496,28 +504,36 @@
         <h3>New songs to add {#if onlineState === 'done'}<span class="count">{onlineRecs.length}</span>{/if}</h3>
         {#if onlineState === 'idle'}
           <button class="block" onclick={loadOnline} disabled={!seed.bpm}>Find songs online</button>
-          <p class="hint">Songs at a matching BPM in a similar genre, from GetSongBPM.</p>
-        {:else if onlineState === 'loading'}
-          <p class="hint">Searching...</p>
+          <p class="hint">Top songs by artists similar to {seed.artist}, measured and kept if the BPM matches. Takes about a minute.</p>
         {:else if onlineState === 'error'}
           <p class="hint error">{onlineError}</p>
           <button class="block" onclick={loadOnline}>Try again</button>
-        {:else if !onlineRecs.length}
-          <p class="hint">No matches found for this genre and tempo.</p>
         {:else}
-          <ul class="recs">
-            {#each onlineRecs as r (r.key)}
-              <li class="rec">
-                <span class="rec-text">
-                  <span class="rec-title">{r.title}</span>
-                  <span class="rec-sub">{r.artist}{r.genres.length ? ' · ' + r.genres.slice(0, 2).join(', ') : ''}</span>
-                </span>
-                <span class="badge">{r.bpm}</span>
-                <button class="small" onclick={() => openInAppleMusic(r.title, r.artist)}>Open</button>
-              </li>
-            {/each}
-          </ul>
-          <p class="hint">Open shows the song in Apple Music. Click + there to add it to your library.</p>
+          {#if onlineState === 'loading'}
+            <p class="hint">
+              {onlineProgress ? 'Measuring ' + onlineProgress.done + ' of ' + onlineProgress.total + ' songs...' : 'Finding similar artists...'}
+            </p>
+          {/if}
+          {#if onlineRecs.length}
+            <ul class="recs">
+              {#each onlineRecs as r (r.key)}
+                <li class="rec">
+                  <span class="rec-text">
+                    <span class="rec-title">{r.title}</span>
+                    <span class="rec-sub">{r.artist}</span>
+                  </span>
+                  <span class="badge">{r.bpm}</span>
+                  <button class="small" onclick={() => openInAppleMusic(r.title, r.artist)}>Open</button>
+                </li>
+              {/each}
+            </ul>
+            <p class="hint">Open shows the song in Apple Music. Click + there to add it to your library.</p>
+          {:else if onlineState === 'done'}
+            <p class="hint">No songs by similar artists matched this BPM. Try a wider range.</p>
+          {/if}
+          {#if onlineState === 'done'}
+            <button class="block" onclick={loadOnline}>Search again</button>
+          {/if}
         {/if}
       </section>
     </aside>
@@ -535,7 +551,7 @@
     <span class="muted">Ready</span>
   {/if}
   <span class="spacer"></span>
-  <button class="link muted" onclick={() => openUrl('https://getsongbpm.com')}>BPM data by GetSongBPM</button>
+  <button class="link muted" onclick={() => openUrl('https://www.deezer.com')}>Song data from Deezer</button>
 </footer>
 
 {#if toast}
@@ -549,14 +565,6 @@
   <div class="modal-bg" role="presentation" onclick={(e) => e.target === e.currentTarget && (showSettings = false)}>
     <div class="modal">
       <h2>Settings</h2>
-      <label>
-        GetSongBPM API key
-        <input type="text" bind:value={draft.apiKey} placeholder="Paste your key" spellcheck="false" />
-      </label>
-      <p class="hint">
-        Free at <button class="link" onclick={() => openUrl('https://getsongbpm.com/api')}>getsongbpm.com/api</button>.
-        Used to look up BPMs and find new songs. Stored only on this Mac.
-      </p>
       <label>
         Match within ± BPM
         <input type="number" min="1" max="20" bind:value={draft.tolerance} />
@@ -573,13 +581,7 @@
         Playlist name for songs without BPM (leave empty to skip)
         <input type="text" bind:value={draft.unknownName} />
       </label>
-      <details>
-        <summary>Advanced</summary>
-        <label>
-          GetSongBPM API address
-          <input type="text" bind:value={draft.apiBase} spellcheck="false" />
-        </label>
-      </details>
+      <p class="hint">Online lookups use the free Deezer and Apple iTunes Search services. No account needed.</p>
       <div class="modal-actions">
         <button onclick={() => (showSettings = false)}>Cancel</button>
         <button class="primary" onclick={saveSettingsDraft}>Save</button>

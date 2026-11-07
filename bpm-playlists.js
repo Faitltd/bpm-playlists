@@ -111,7 +111,7 @@ function bpmFromSamples(all, sr) {
   }
   // Half-time check: prefer double tempo if its beat is nearly as strong.
   const half = Math.round(bestLag / 2);
-  if (half >= minLag) {
+  if (half >= minLag && (60 * fps) / half <= 180) {
     const hBest = Math.max(ac(half - 1), ac(half), ac(half + 1));
     if (hBest >= 0.9 * ac(bestLag)) {
       bestLag = [half - 1, half, half + 1].reduce((p, l) => (ac(l) > ac(p) ? l : p), half);

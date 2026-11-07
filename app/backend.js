@@ -87,7 +87,7 @@ function bpmFromSamples(all, sr) {
   }
   // Half-time check: prefer double tempo if its beat is nearly as strong.
   const half = Math.round(bestLag / 2);
-  if (half >= minLag) {
+  if (half >= minLag && (60 * fps) / half <= 180) {
     const hBest = Math.max(ac(half - 1), ac(half), ac(half + 1));
     if (hBest >= 0.9 * ac(bestLag)) {
       bestLag = [half - 1, half, half + 1].reduce((p, l) => (ac(l) > ac(p) ? l : p), half);
@@ -256,6 +256,24 @@ const ops = {
     const genres = safeBulk(() => ts.genre(), n, '');
     const bpms = safeBulk(() => ts.bpm(), n, 0);
     return ids.map((id, i) => ({ id, name: names[i], artist: artists[i], genre: genres[i], bpm: bpms[i] || 0 }));
+  },
+
+  // Download song previews (e.g. Deezer 30-second MP3s) and measure their BPM.
+  measureUrls({ items }) {
+    const app = Application.currentApplication();
+    app.includeStandardAdditions = true;
+    const pid = $.NSProcessInfo.processInfo.processIdentifier;
+    return items.map(({ key, url }) => {
+      const tmp = '/tmp/bpm_playlists_prev_' + pid + '.mp3';
+      try {
+        app.doShellScript('/usr/bin/curl -sfL -m 20 -o ' + tmp + ' ' + shQuote(url));
+        return { key, bpm: measureFile(app, tmp) };
+      } catch (e) {
+        return { key, bpm: 0 };
+      } finally {
+        app.doShellScript('rm -f ' + tmp);
+      }
+    });
   },
 
   setBpms({ items }) {

@@ -1,5 +1,5 @@
-// Genre similarity between Apple Music genres ("Dance", "Hip-Hop/Rap")
-// and GetSongBPM artist genres ("house", "electronic", "hip hop").
+// Genre similarity between Apple Music genres ("Dance", "Hip-Hop/Rap", "Electronic"),
+// used to rank recommendations from your own library.
 const GROUPS = [
   ['electronic', 'electronica', 'dance', 'house', 'deep house', 'melodic house', 'progressive house', 'tech house',
     'techno', 'melodic techno', 'edm', 'trance', 'downtempo', 'chill', 'chillout', 'chillwave', 'ambient', 'idm',
