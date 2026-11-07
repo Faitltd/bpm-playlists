@@ -4,3 +4,4 @@ ui/dist/
 build/
 dist/
 .DS_Store
+.github_release_notes.md

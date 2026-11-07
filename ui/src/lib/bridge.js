@@ -29,10 +29,17 @@ export async function httpJson(url) {
   try { return JSON.parse(res.body); } catch (e) { throw new Error('Unexpected response from server.'); }
 }
 
+// Download a preview clip and return audio features from ReccoBeats.
+export const analyzeUrl = (url) => call('analyze', { url });
+
 export const openUrl = (url) => call('open', { url });
 
 export async function loadSettings() {
   try { return JSON.parse(await call('getSettings')); } catch (e) { return {}; }
 }
-
 export const saveSettings = (s) => call('setSettings', { json: JSON.stringify(s) });
+
+export async function loadStore() {
+  try { return JSON.parse(await call('loadStore')) || {}; } catch (e) { return {}; }
+}
+export const saveStore = (obj) => call('saveStore', { json: JSON.stringify(obj) });

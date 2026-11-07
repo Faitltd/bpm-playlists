@@ -255,7 +255,21 @@ const ops = {
     const artists = safeBulk(() => ts.artist(), n, '');
     const genres = safeBulk(() => ts.genre(), n, '');
     const bpms = safeBulk(() => ts.bpm(), n, 0);
-    return ids.map((id, i) => ({ id, name: names[i], artist: artists[i], genre: genres[i], bpm: bpms[i] || 0 }));
+    const durs = safeBulk(() => ts.duration(), n, 0);
+    return ids.map((id, i) => ({
+      id, name: names[i], artist: artists[i], genre: genres[i], bpm: bpms[i] || 0, duration: Math.round(durs[i] || 0)
+    }));
+  },
+
+  // Create (or replace) a playlist with songs in the given order.
+  buildOrdered({ name, ids }) {
+    const M = music();
+    const np = rebuildPlaylist(M, name);
+    let count = 0;
+    ids.forEach((id) => {
+      try { M.duplicate(trackById(M, id), { to: np }); count++; } catch (e) {}
+    });
+    return { name, count, id: np.persistentID() };
   },
 
   // Download song previews (e.g. Deezer 30-second MP3s) and measure their BPM.
@@ -263,8 +277,9 @@ const ops = {
     const app = Application.currentApplication();
     app.includeStandardAdditions = true;
     const pid = $.NSProcessInfo.processInfo.processIdentifier;
-    return items.map(({ key, url }) => {
-      const tmp = '/tmp/bpm_playlists_prev_' + pid + '.mp3';
+    return items.map(({ key, url }, i) => {
+      const ext = /\.m4a(\?|$)/i.test(url) ? 'm4a' : 'mp3';
+      const tmp = '/tmp/bpm_playlists_prev_' + pid + '_' + i + '.' + ext;
       try {
         app.doShellScript('/usr/bin/curl -sfL -m 20 -o ' + tmp + ' ' + shQuote(url));
         return { key, bpm: measureFile(app, tmp) };

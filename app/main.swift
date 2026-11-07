@@ -55,6 +55,20 @@ final class Bridge: NSObject, WKScriptMessageHandler {
             let s = args["json"] as? String ?? "{}"
             UserDefaults.standard.set(s, forKey: defaultsKey)
             return true
+        case "analyze":
+            // Download a preview clip and get audio features from ReccoBeats (free, no key).
+            guard let s = args["url"] as? String, let url = URL(string: s) else { throw BridgeError("Bad URL") }
+            let audio = try download(url)
+            return try reccobeats(audio)
+        case "loadStore":
+            guard let d = try? Data(contentsOf: storeURL()), let s = String(data: d, encoding: .utf8) else { return "{}" }
+            return s
+        case "saveStore":
+            let s = args["json"] as? String ?? "{}"
+            let p = storeURL()
+            try FileManager.default.createDirectory(at: p.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try (s.data(using: .utf8) ?? Data()).write(to: p, options: .atomic)
+            return true
         default:
             throw BridgeError("Unknown command: \(cmd)")
         }
@@ -89,10 +103,12 @@ final class Bridge: NSObject, WKScriptMessageHandler {
         return try JSONSerialization.jsonObject(with: json, options: [.fragmentsAllowed])
     }
 
-    private func httpGet(_ urlString: String) throws -> Any {
-        guard let url = URL(string: urlString) else { throw BridgeError("Bad URL") }
-        var req = URLRequest(url: url, timeoutInterval: 20)
-        req.setValue("BPMPlaylists/1.0 (+https://github.com/Faitltd/bpm-playlists)", forHTTPHeaderField: "User-Agent")
+    private func storeURL() -> URL {
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        return base.appendingPathComponent("BPM Playlists").appendingPathComponent("analysis.json")
+    }
+
+    private func send(_ req: URLRequest) throws -> (Int, Data, HTTPURLResponse?) {
         let sem = DispatchSemaphore(value: 0)
         var result: (Data?, URLResponse?, Error?) = (nil, nil, nil)
         URLSession.shared.dataTask(with: req) { d, r, e in
@@ -101,9 +117,57 @@ final class Bridge: NSObject, WKScriptMessageHandler {
         }.resume()
         sem.wait()
         if let e = result.2 { throw e }
-        let status = (result.1 as? HTTPURLResponse)?.statusCode ?? 0
-        let body = result.0.flatMap { String(data: $0, encoding: .utf8) } ?? ""
-        return ["status": status, "body": body]
+        let http = result.1 as? HTTPURLResponse
+        return (http?.statusCode ?? 0, result.0 ?? Data(), http)
+    }
+
+    private func httpGet(_ urlString: String) throws -> Any {
+        guard let url = URL(string: urlString) else { throw BridgeError("Bad URL") }
+        var req = URLRequest(url: url, timeoutInterval: 20)
+        req.setValue("BPMPlaylists/1.0 (+https://github.com/Faitltd/bpm-playlists)", forHTTPHeaderField: "User-Agent")
+        let (status, data, _) = try send(req)
+        return ["status": status, "body": String(data: data, encoding: .utf8) ?? ""]
+    }
+
+    private func download(_ url: URL) throws -> Data {
+        var req = URLRequest(url: url, timeoutInterval: 30)
+        req.setValue("BPMPlaylists/1.0", forHTTPHeaderField: "User-Agent")
+        let (status, data, _) = try send(req)
+        guard status == 200, data.count > 1000 else { throw BridgeError("Could not download preview (\(status)).") }
+        guard data.count < 5_000_000 else { throw BridgeError("Preview too large.") }
+        return data
+    }
+
+    private func reccobeats(_ audio: Data) throws -> Any {
+        let boundary = "----BPMPlaylists\(UUID().uuidString)"
+        var body = Data()
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"audioFile\"; filename=\"preview.mp3\"\r\n".data(using: .utf8)!)
+        body.append("Content-Type: audio/mpeg\r\n\r\n".data(using: .utf8)!)
+        body.append(audio)
+        body.append("\r\n--\(boundary)--\r\n".data(using: .utf8)!)
+
+        var attempt = 0
+        while true {
+            attempt += 1
+            var req = URLRequest(url: URL(string: "https://api.reccobeats.com/v1/analysis/audio-features")!, timeoutInterval: 90)
+            req.httpMethod = "POST"
+            req.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+            req.setValue("application/json", forHTTPHeaderField: "Accept")
+            req.setValue("BPMPlaylists/1.0 (+https://github.com/Faitltd/bpm-playlists)", forHTTPHeaderField: "User-Agent")
+            req.httpBody = body
+            let (status, data, http) = try send(req)
+            if status == 200 {
+                return try JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed])
+            }
+            if (status == 429 || status >= 500) && attempt < 4 {
+                let retry = Double(http?.value(forHTTPHeaderField: "Retry-After") ?? "") ?? 3
+                Thread.sleep(forTimeInterval: min(max(retry, 1), 15))
+                continue
+            }
+            let msg = String(data: data.prefix(200), encoding: .utf8) ?? ""
+            throw BridgeError("Analysis service returned \(status). \(msg)")
+        }
     }
 }
 

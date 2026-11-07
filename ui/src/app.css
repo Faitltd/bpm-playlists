@@ -216,3 +216,4 @@ label.rec { cursor: pointer; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
 .act-grid { display: grid; grid-template-columns: 1fr 90px 90px auto; gap: 6px 8px; align-items: center; }
 .act-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.bpm.unsure { border-style: dashed; border-color: var(--warn); }
