@@ -6,6 +6,7 @@
   import SessionView from './SessionView.svelte';
   import PlaylistView from './PlaylistView.svelte';
   import MatchPanel from './MatchPanel.svelte';
+  import SetlistView from './SetlistView.svelte';
 
   let showSettings = $state(false);
   let draft = $state(null);
@@ -15,7 +16,8 @@
   const TABS = [
     { id: 'find', label: 'Find' },
     { id: 'session', label: 'Session' },
-    { id: 'playlist', label: 'Playlists' }
+    { id: 'playlist', label: 'Playlists' },
+    { id: 'setlist', label: 'Setlist' }
   ];
 
   function go(id) { ui.view = id; ui.seed = null; }
@@ -63,6 +65,7 @@
   <main class="main">
     {#if ui.view === 'find'}<FindView />
     {:else if ui.view === 'session'}<SessionView />
+    {:else if ui.view === 'setlist'}<SetlistView />
     {:else}<PlaylistView />{/if}
   </main>
   {#if ui.seed}<MatchPanel />{/if}

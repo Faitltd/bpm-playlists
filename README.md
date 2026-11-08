@@ -27,6 +27,8 @@ Where your library can't fill a segment, the app shows a gap and can **find song
 
 **Find by BPM.** Type a tempo and see every song in your library near it, with the songs you've favorited and play most at the top. Play any of them, add a selection to a playlist, or create a "BPM 124" playlist in one click.
 
+**Setlist from SoundCloud.** Paste SoundCloud links (or a set). Each song is fetched, its BPM measured on the full track and its energy rated. Order it for a smooth DJ flow, play each song in place, and copy the list. Needs the free tools yt-dlp and ffmpeg; the app offers to install them with Homebrew.
+
 **Playlists.** Open any playlist to see each song's BPM, energy and mood. Type a BPM to correct one. **Build activity playlists** splits a playlist into Relax, Yoga, Walk, Workout, Run and HIIT by BPM. **Match** on any song builds a playlist of songs within a few BPM, suggests similar songs from your library, and finds new ones online.
 
 ## Install

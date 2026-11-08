@@ -102,6 +102,16 @@ function bpmFromSamples(all, sr) {
 
 function shQuote(s) { return "'" + String(s).replace(/'/g, "'\\''") + "'"; }
 
+function findTools(app) {
+  const find = (name) => {
+    for (const p of ['/opt/homebrew/bin/' + name, '/usr/local/bin/' + name, '/usr/bin/' + name]) {
+      try { app.doShellScript('test -x ' + p); return p; } catch (e) {}
+    }
+    return null;
+  };
+  return { ytdlp: find('yt-dlp'), ffmpeg: find('ffmpeg') };
+}
+
 function measureFile(app, path) {
   const tmp = '/tmp/bpm_playlists_app_' + $.NSProcessInfo.processInfo.processIdentifier + '.wav';
   try {
@@ -284,6 +294,95 @@ const ops = {
     try { state = String(M.playerState()); } catch (e) {}
     try { id = M.currentTrack.persistentID(); } catch (e) {}
     return { state, id };
+  },
+
+  // SoundCloud: fetch a track (yt-dlp), measure BPM on the whole song, get energy from a 30-second clip.
+  soundcloud({ url }) {
+    const app = Application.currentApplication();
+    app.includeStandardAdditions = true;
+    const tools = findTools(app);
+    if (!tools.ytdlp) return { error: 'yt-dlp is not installed.', needTools: true };
+    const pid = $.NSProcessInfo.processInfo.processIdentifier;
+    const base = '/tmp/bpm_sc_' + pid + '_' + Date.now();
+    const common = '--ignore-config --no-update --no-playlist --no-warnings ';
+    let meta;
+    try {
+      const json = app.doShellScript(shQuote(tools.ytdlp) + ' ' + common + '-J ' + shQuote(url) + ' 2>/dev/null');
+      meta = JSON.parse(json);
+    } catch (e) {
+      return { error: 'Could not read that SoundCloud link.' };
+    }
+    const title = String(meta.title || '');
+    const uploader = String(meta.uploader || meta.channel || '');
+    let artist = uploader, song = title;
+    const m = title.match(/^(.+?)\s+[-–—]\s+(.+)$/);
+    if (m) { artist = m[1].trim(); song = m[2].trim(); }
+    const out = {
+      url, permalink: meta.webpage_url || url, title: song, artist, uploader,
+      duration: Math.round(Number(meta.duration) || 0), thumbnail: meta.thumbnail || '', tempo: 0, conf: 'none'
+    };
+    let file = null;
+    try {
+      app.doShellScript(shQuote(tools.ytdlp) + ' ' + common + '-f "http_mp3_128_url/bestaudio[ext=mp3]/bestaudio" -o ' + shQuote(base + '.%(ext)s') + ' ' + shQuote(url) + ' >/dev/null 2>&1');
+      file = app.doShellScript('ls ' + base + '.* 2>/dev/null | head -1').trim();
+    } catch (e) { file = null; }
+    if (!file) { out.error = 'Download failed. The track may be private or DRM protected.'; return out; }
+    try {
+      const tmp = base + '.wav';
+      app.doShellScript('/usr/bin/afconvert -f WAVE -d LEI16@11025 -c 1 ' + shQuote(file) + ' ' + shQuote(tmp));
+      const data = $.NSData.dataWithContentsOfFile(tmp);
+      const b64 = ObjC.unwrap(data.base64EncodedStringWithOptions(0));
+      const { x, sr } = wavToSamples(b64ToBytes(b64));
+      out.tempo = bpmFromSamples(x, sr);
+      out.conf = 'high';
+      app.doShellScript('rm -f ' + shQuote(tmp));
+    } catch (e) { /* no tempo */ }
+    if (tools.ffmpeg) {
+      try {
+        const clip = base + '_clip.mp3';
+        const start = Math.max(0, Math.floor(out.duration / 2) - 15);
+        app.doShellScript(shQuote(tools.ffmpeg) + ' -y -loglevel error -ss ' + start + ' -t 30 -i ' + shQuote(file) + ' -ac 2 -ar 44100 -b:a 128k ' + shQuote(clip));
+        const res = app.doShellScript('/usr/bin/curl -s -m 90 -F "audioFile=@' + clip + '" https://api.reccobeats.com/v1/analysis/audio-features');
+        const f = JSON.parse(res);
+        if (f && f.energy != null) out.features = f;
+        app.doShellScript('rm -f ' + shQuote(clip));
+      } catch (e) { /* no features */ }
+    }
+    app.doShellScript('rm -f ' + shQuote(file));
+    return out;
+  },
+
+  // Expand a SoundCloud set (playlist) into track links.
+  soundcloudSet({ url }) {
+    const app = Application.currentApplication();
+    app.includeStandardAdditions = true;
+    const tools = findTools(app);
+    if (!tools.ytdlp) return { error: 'yt-dlp is not installed.', needTools: true };
+    try {
+      const json = app.doShellScript(shQuote(tools.ytdlp) + ' --ignore-config --no-update --no-warnings --flat-playlist -J ' + shQuote(url) + ' 2>/dev/null');
+      const d = JSON.parse(json);
+      const entries = (d.entries || []).map((e) => e.webpage_url || e.url).filter(Boolean);
+      return { urls: entries.length ? entries : [url] };
+    } catch (e) {
+      return { urls: [url] };
+    }
+  },
+
+  tools() {
+    const app = Application.currentApplication();
+    app.includeStandardAdditions = true;
+    return findTools(app);
+  },
+
+  installTools() {
+    const app = Application.currentApplication();
+    app.includeStandardAdditions = true;
+    const brew = ['/opt/homebrew/bin/brew', '/usr/local/bin/brew'].find((p) => { try { app.doShellScript('test -x ' + p); return true; } catch (e) { return false; } });
+    if (!brew) return { error: 'Homebrew is not installed. Get it at brew.sh, then try again.' };
+    try {
+      app.doShellScript(shQuote(brew) + ' install yt-dlp ffmpeg >/dev/null 2>&1');
+    } catch (e) { return { error: 'Install failed. In Terminal, run: brew install yt-dlp ffmpeg' }; }
+    return findTools(app);
   },
 
   // Create (or replace) a playlist with songs in the given order.

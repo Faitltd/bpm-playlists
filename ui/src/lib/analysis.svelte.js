@@ -2,13 +2,13 @@
 import { analyzeUrl, loadStore, saveStore, music } from './bridge.js';
 import { findPreviews } from './online.js';
 
-export const analysis = $state({ tracks: {}, online: {}, loaded: false });
+export const analysis = $state({ tracks: {}, online: {}, setlist: [], loaded: false });
 
 let saveTimer;
 function scheduleSave() {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
-    saveStore({ tracks: $state.snapshot(analysis.tracks), online: $state.snapshot(analysis.online) }).catch(() => {});
+    saveStore({ tracks: $state.snapshot(analysis.tracks), online: $state.snapshot(analysis.online), setlist: $state.snapshot(analysis.setlist) }).catch(() => {});
   }, 800);
 }
 
@@ -16,6 +16,7 @@ export async function loadAnalysis() {
   const s = await loadStore();
   analysis.tracks = s.tracks || {};
   analysis.online = s.online || {};
+  analysis.setlist = Array.isArray(s.setlist) ? s.setlist : [];
   analysis.loaded = true;
 }
 
@@ -173,6 +174,8 @@ export async function analyzeCandidate(c) {
   scheduleSave();
   return r;
 }
+
+export function saveSoon() { scheduleSave(); }
 
 export function stats(ids) {
   let analyzed = 0, missing = 0;
