@@ -62,33 +62,66 @@ export async function findPreview(title, artist) {
   return (await findPreviews(title, artist))[0] || null;
 }
 
-// Top songs by artists similar to the given artists. Returns candidates with preview URLs.
-export async function similarArtistTracks(artistNames, { perArtist = 4, maxArtists = 20, exclude = new Set() } = {}) {
+// Find one artist on Deezer: exact full name first ("Sultan + Shepard"), then the first-named artist.
+async function findArtist(name) {
+  const tryName = async (n) => {
+    const res = await dz('/search/artist?limit=5&q=' + enc(n));
+    return (res.data || []).find((x) => simple(x.name) === simple(n)) || null;
+  };
+  try {
+    const full = await tryName(name);
+    if (full) return full;
+    const first = cleanArtist(name);
+    if (first !== name) { const a = await tryName(first); if (a) return a; }
+    const res = await dz('/search/artist?limit=1&q=' + enc(first));
+    return (res.data || [])[0] || null;
+  } catch (e) { return null; }
+}
+
+// Artists similar to the given artists, ranked. Returns [{ id, name, rank, from }].
+export async function similarArtists(artistNames, { max = 24 } = {}) {
   const related = new Map();
-  for (const name of artistNames.slice(0, 3)) {
+  const seedIds = new Set();
+  const seeds = artistNames.filter(Boolean).slice(0, 4);
+  for (const name of seeds) {
     try {
-      const res = await dz('/search/artist?limit=5&q=' + enc(cleanArtist(name)));
-      const want = simple(cleanArtist(name));
-      const a = (res.data || []).find((x) => simple(x.name) === want) || (res.data || [])[0];
+      const a = await findArtist(name);
       if (!a) continue;
-      const rel = (await dz('/artist/' + a.id + '/related?limit=' + maxArtists)).data || [];
-      for (const r of rel) if (!related.has(r.id)) related.set(r.id, r);
+      seedIds.add(a.id);
+      const rel = (await dz('/artist/' + a.id + '/related?limit=20')).data || [];
+      rel.forEach((r, i) => {
+        const cur = related.get(r.id);
+        const score = 20 - i + (cur ? cur.score + 10 : 0); // artists related to several seeds rise
+        related.set(r.id, { id: r.id, name: r.name, score, from: cur ? cur.from + ', ' + name : name });
+      });
     } catch (e) { /* skip */ }
   }
+  return [...related.values()].filter((a) => !seedIds.has(a.id)).sort((a, b) => b.score - a.score).slice(0, max)
+    .map((a, i) => ({ ...a, rank: i + 1 }));
+}
+
+// Top songs by the given artists ([{ id, name }]). Returns candidates with preview URLs.
+export async function topTracks(artists, { perArtist = 5, exclude = new Set() } = {}) {
   const out = [];
   const seen = new Set();
-  for (const ra of [...related.values()].slice(0, maxArtists * 2)) {
+  for (const ra of artists) {
     try {
       const top = (await dz('/artist/' + ra.id + '/top?limit=' + perArtist)).data || [];
       for (const t of top) {
         const key = songKey(t.title, t.artist?.name);
         if (!t.preview || seen.has(key) || exclude.has(key)) continue;
         seen.add(key);
-        out.push({ key: 'dz:' + t.id, skey: key, title: t.title, artist: t.artist?.name || ra.name, url: t.preview, link: t.link, source: 'deezer' });
+        out.push({ key: 'dz:' + t.id, skey: key, title: t.title, artist: t.artist?.name || ra.name, artistRank: ra.rank || 0, url: t.preview, link: t.link, source: 'deezer' });
       }
     } catch (e) { /* skip */ }
   }
   return out;
+}
+
+// Convenience: similar artists, then their top songs.
+export async function similarArtistTracks(artistNames, opts = {}) {
+  const artists = await similarArtists(artistNames, { max: opts.maxArtists || 20 });
+  return topTracks(artists, opts);
 }
 
 // Open a song in the Music app (via Apple's catalog search).

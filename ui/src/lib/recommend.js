@@ -1,16 +1,16 @@
 // Recommendations: new songs by similar artists that fit a BPM and energy target.
-import { similarArtistTracks, songKey } from './online.js';
+import { similarArtistTracks, topTracks, songKey } from './online.js';
 import { analyzeCandidate, energy10, mood } from './analysis.svelte.js';
 import { effectiveBpm } from './session.js';
 
-// opts: { targetBpm, targetEnergy (1-10 or 0), seedArtists [], tolerance, energyTol, halfDouble, library [{name, artist}] }
+// opts: { targetBpm, targetEnergy (1-10 or 0), seedArtists [] or artists [{id,name,rank}], tolerance, energyTol, halfDouble, library [{name, artist}] }
 // onUpdate(list, done, total) is called as songs are analyzed. Resolves to the final list.
 export async function recommend(opts, onUpdate, isCancelled = () => false) {
-  const { targetBpm, targetEnergy = 0, seedArtists = [], tolerance = 5, energyTol = 2, halfDouble = true, library = [] } = opts;
+  const { targetBpm, targetEnergy = 0, seedArtists = [], artists = null, tolerance = 5, energyTol = 2, halfDouble = true, library = [] } = opts;
   const exclude = new Set(library.map((t) => songKey(t.name, t.artist)));
-  const candidates = await similarArtistTracks(seedArtists, { exclude });
+  const candidates = artists ? await topTracks(artists, { exclude }) : await similarArtistTracks(seedArtists, { exclude });
   if (isCancelled()) return [];
-  if (!candidates.length) throw new Error('No similar artists found for ' + seedArtists.join(', ') + '.');
+  if (!candidates.length) throw new Error(artists ? 'No songs with previews for those artists.' : 'No similar artists found for ' + seedArtists.join(', ') + '.');
 
   const dist = (bpm) => Math.abs(effectiveBpm(bpm, targetBpm, halfDouble) - targetBpm);
   const matches = [];
@@ -28,7 +28,7 @@ export async function recommend(opts, onUpdate, isCancelled = () => false) {
         const ed = targetEnergy && e ? Math.abs(e - targetEnergy) : 0;
         if (bd <= tolerance && ed <= energyTol) {
           matches.push({ ...c, bpm: r.tempo, energy: e, mood: mood(r), bd, ed, reason: reason(r.tempo, e, targetBpm, halfDouble) });
-          matches.sort((a, b) => a.bd + a.ed * 2 - (b.bd + b.ed * 2));
+          matches.sort((a, b) => (a.artistRank || 99) - (b.artistRank || 99) || a.bd + a.ed * 2 - (b.bd + b.ed * 2));
         }
       }
       onUpdate?.([...matches], done, candidates.length);

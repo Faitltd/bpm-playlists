@@ -5,7 +5,7 @@
   import { rec, energy10, analyzeTrack } from './lib/analysis.svelte.js';
   import { genreScore } from './lib/genre.js';
   import { recommend } from './lib/recommend.js';
-  import { openInAppleMusic } from './lib/online.js';
+  import { openInAppleMusic, similarArtists, simple } from './lib/online.js';
   import { effectiveBpm } from './lib/session.js';
   import SongRow from './SongRow.svelte';
 
@@ -17,9 +17,34 @@
   let picked = new SvelteSet();
   let addTarget = $state(null);
   let online = $state({ state: 'idle', list: [], done: 0, total: 0, error: '', forId: null });
+  let artists = $state({ state: 'idle', list: [], error: '' }); // similar artists step
+  let pickedArtists = new SvelteSet();
+
+  // Seeds: this song's artist, then the most common other artists in the playlist being added to.
+  const seedArtists = $derived.by(() => {
+    const counts = new Map();
+    for (const t of ui.tracks) if (t.artist && t.artist !== seed.artist) counts.set(t.artist, (counts.get(t.artist) || 0) + 1);
+    const others = [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([a]) => a).slice(0, 3);
+    return [seed.artist, ...others].filter(Boolean);
+  });
+  const libArtists = $derived(new Set((ui.libIndex || []).map((t) => simple(t.artist))));
+
+  async function findArtists() {
+    artists = { state: 'loading', list: [], error: '' };
+    pickedArtists.clear();
+    try {
+      const list = await similarArtists(seedArtists, { max: 24 });
+      if (!list.length) throw new Error('No similar artists found.');
+      list.slice(0, 8).forEach((a) => pickedArtists.add(a.id));
+      artists = { state: 'done', list, error: '' };
+    } catch (e) {
+      artists = { state: 'error', list: [], error: e.message };
+    }
+  }
+  function toggleArtist(id) { pickedArtists.has(id) ? pickedArtists.delete(id) : pickedArtists.add(id); }
 
   $effect(() => { if (!addTarget) addTarget = ui.selectedId; });
-  $effect(() => { seed.id; picked.clear(); online = { state: 'idle', list: [], done: 0, total: 0, error: '', forId: null }; });
+  $effect(() => { seed.id; picked.clear(); pickedArtists.clear(); artists = { state: 'idle', list: [], error: '' }; online = { state: 'idle', list: [], done: 0, total: 0, error: '', forId: null }; });
 
   const dist = (b) => Math.abs(effectiveBpm(b, seed.bpm, ui.settings.halfDouble) - seed.bpm);
 
@@ -60,8 +85,9 @@
     const forId = seed.id;
     online = { state: 'loading', list: [], done: 0, total: 0, error: '', forId };
     try {
+      const chosen = artists.list.filter((a) => pickedArtists.has(a.id));
       const list = await recommend({
-        targetBpm: seed.bpm, targetEnergy: seedEnergy, seedArtists: [seed.artist],
+        targetBpm: seed.bpm, targetEnergy: seedEnergy, seedArtists, artists: chosen.length ? chosen : null,
         tolerance: ui.settings.tolerance, energyTol: ui.settings.energyTol, halfDouble: ui.settings.halfDouble, library: ui.libIndex || []
       }, (l, done, total) => { if (online.forId === forId) online = { ...online, list: l, done, total }; }, () => online.forId !== forId);
       if (online.forId === forId) online = { ...online, state: 'done', list };
@@ -110,16 +136,39 @@
     </section>
 
     <section>
+      <h3>Similar artists {#if artists.state === 'done'}<span class="count">{pickedArtists.size} of {artists.list.length}</span>{/if}</h3>
+      {#if artists.state === 'idle'}
+        <button class="block" onclick={findArtists}>Find similar artists</button>
+        <p class="hint">Based on {seedArtists.join(', ')}.</p>
+      {:else if artists.state === 'loading'}
+        <p class="hint">Looking up artists like {seedArtists[0]}...</p>
+      {:else if artists.state === 'error'}
+        <p class="hint error">{artists.error}</p>
+        <button class="block" onclick={findArtists}>Try again</button>
+      {:else}
+        <div class="chips">
+          {#each artists.list as a (a.id)}
+            <button class="chip sm" class:on={pickedArtists.has(a.id)} onclick={() => toggleArtist(a.id)} title={'Similar to ' + a.from + (libArtists.has(simple(a.name)) ? '. Already in your library.' : '')}>
+              {a.name}{#if libArtists.has(simple(a.name))}<span class="muted"> ✓</span>{/if}
+            </button>
+          {/each}
+        </div>
+        <p class="hint">Tick the artists you want, then search their songs. ✓ means you already have some of their music.</p>
+      {/if}
+    </section>
+
+    {#if artists.state === 'done'}
+    <section>
       <h3>New songs {#if online.state === 'done'}<span class="count">{online.list.length}</span>{/if}</h3>
       {#if online.state === 'idle'}
-        <button class="block" onclick={findOnline}>Find songs online</button>
-        <p class="hint">By artists similar to {seed.artist}, at this tempo and energy. About a minute.</p>
+        <button class="block primary" onclick={findOnline} disabled={!pickedArtists.size}>Search songs by {pickedArtists.size} artists</button>
+        <p class="hint">Keeps the ones near {seed.bpm} BPM{seedEnergy ? ' and energy ' + seedEnergy : ''}. About a minute.</p>
       {:else if online.state === 'error'}
         <p class="hint error">{online.error}</p>
         <button class="block" onclick={findOnline}>Try again</button>
       {:else}
         {#if online.state === 'loading'}
-          <p class="hint">{online.total ? 'Checking ' + online.done + ' of ' + online.total + '...' : 'Finding similar artists...'}</p>
+          <p class="hint">{online.total ? 'Checking ' + online.done + ' of ' + online.total + '...' : 'Collecting songs...'}</p>
         {/if}
         {#if online.list.length}
           <div class="recs">
@@ -130,9 +179,13 @@
             {/each}
           </div>
         {:else if online.state === 'done'}
-          <p class="hint">Nothing fit. Widen the ranges in Settings and try again.</p>
+          <p class="hint">Nothing fit. Tick more artists or widen the ranges in Settings.</p>
+        {/if}
+        {#if online.state === 'done'}
+          <button class="block" onclick={findOnline} disabled={!pickedArtists.size}>Search again</button>
         {/if}
       {/if}
     </section>
+    {/if}
   {/if}
 </aside>

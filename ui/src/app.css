@@ -84,3 +84,4 @@ h3 { font-size: 12px; margin: 0 0 6px; text-transform: uppercase; letter-spacing
 .modal h3 { margin-top: 8px; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
 .act-grid { display: grid; grid-template-columns: 1fr 80px 80px auto; gap: 5px 8px; align-items: center; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
