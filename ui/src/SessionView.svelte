@@ -7,6 +7,10 @@
   import { recommend } from './lib/recommend.js';
   import { openInAppleMusic } from './lib/online.js';
   import EnergyBadge from './EnergyBadge.svelte';
+  import PlayButton from './PlayButton.svelte';
+  import { player, isPlaying, toggleMusic, togglePreview, startPolling } from './lib/player.svelte.js';
+
+  $effect(() => { startPolling(); });
 
   let presetId = $state('run');
   let length = $state(45);
@@ -301,7 +305,8 @@
           {#if p.tracks.length}
             <ol class="plan-list">
               {#each p.tracks as t, ti (t.id)}
-                <li class="rec">
+                <li class="rec" class:playing={isPlaying(t.id)}>
+                  <PlayButton playing={isPlaying(t.id)} onclick={() => toggleMusic(t.id)} title="Play in Music" />
                   <span class="rec-text">
                     <span class="rec-title">{t.name}</span>
                     <span class="rec-sub">{t.artist} · {t.genre}</span>
@@ -329,6 +334,7 @@
                 <ul class="recs">
                   {#each gr.list.slice(0, 15) as r (r.key)}
                     <li class="rec">
+                      <PlayButton playing={player.previewKey === r.key} onclick={() => togglePreview(r.key, r.url)} title="Play 30-second preview" />
                       <span class="rec-text">
                         <span class="rec-title">{r.title}</span>
                         <span class="rec-sub">{r.artist} · {r.reason}</span>

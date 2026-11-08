@@ -8,6 +8,8 @@
   import { openInAppleMusic } from './lib/online.js';
   import { effectiveBpm } from './lib/session.js';
   import EnergyBadge from './EnergyBadge.svelte';
+  import PlayButton from './PlayButton.svelte';
+  import { player, isPlaying, toggleMusic, togglePreview } from './lib/player.svelte.js';
 
   const seed = $derived(ui.seed);
   const seedRec = $derived(rec(seed.id));
@@ -169,6 +171,7 @@
             <li>
               <label class="rec">
                 <input type="checkbox" checked={picked.has(r.id)} onchange={() => toggle(r.id)} />
+                <PlayButton playing={isPlaying(r.id)} onclick={(e) => { e.preventDefault(); toggleMusic(r.id); }} title="Play in Music" />
                 <span class="rec-text">
                   <span class="rec-title">{r.name}</span>
                   <span class="rec-sub">{r.artist} · {r.genre}</span>
@@ -215,6 +218,7 @@
         <ul class="recs">
           {#each online.list as r (r.key)}
             <li class="rec">
+              <PlayButton playing={player.previewKey === r.key} onclick={() => togglePreview(r.key, r.url)} title="Play 30-second preview" />
               <span class="rec-text">
                 <span class="rec-title">{r.title}</span>
                 <span class="rec-sub">{r.artist} · {r.reason}</span>

@@ -261,6 +261,26 @@ const ops = {
     }));
   },
 
+  play({ id }) {
+    const M = music();
+    M.play(trackById(M, id));
+    return ops.playerState();
+  },
+
+  pause() {
+    const M = music();
+    try { M.pause(); } catch (e) {}
+    return ops.playerState();
+  },
+
+  playerState() {
+    const M = music();
+    let state = 'stopped', id = null;
+    try { state = String(M.playerState()); } catch (e) {}
+    try { id = M.currentTrack.persistentID(); } catch (e) {}
+    return { state, id };
+  },
+
   // Create (or replace) a playlist with songs in the given order.
   buildOrdered({ name, ids }) {
     const M = music();

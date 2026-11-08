@@ -3,6 +3,10 @@
   import { music } from './lib/bridge.js';
   import { analysis, rec, energy10, mood, analyzeMany, stats } from './lib/analysis.svelte.js';
   import EnergyBadge from './EnergyBadge.svelte';
+  import PlayButton from './PlayButton.svelte';
+  import { player, isPlaying, toggleMusic, startPolling } from './lib/player.svelte.js';
+
+  $effect(() => { startPolling(); });
 
   let sortKey = $state('bpm');
   let sortDir = $state(1);
@@ -94,6 +98,7 @@
   <table>
     <thead>
       <tr>
+        <th class="playcol"></th>
         <th class="sortable" onclick={() => setSort('name')}>Title {sortKey === 'name' ? (sortDir > 0 ? '↑' : '↓') : ''}</th>
         <th class="sortable" onclick={() => setSort('artist')}>Artist {sortKey === 'artist' ? (sortDir > 0 ? '↑' : '↓') : ''}</th>
         <th class="sortable" onclick={() => setSort('genre')}>Genre {sortKey === 'genre' ? (sortDir > 0 ? '↑' : '↓') : ''}</th>
@@ -107,7 +112,8 @@
     <tbody>
       {#each sortedTracks as t (t.id)}
         {@const r = rec(t.id)}
-        <tr class:seed={ui.seed?.id === t.id}>
+        <tr class:seed={ui.seed?.id === t.id} class:playing={isPlaying(t.id)}>
+          <td class="playcol"><PlayButton playing={isPlaying(t.id)} onclick={() => toggleMusic(t.id)} title="Play in Music" /></td>
           <td class="title">{t.name}</td>
           <td>{t.artist}</td>
           <td class="muted">{t.genre}</td>

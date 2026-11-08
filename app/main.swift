@@ -187,6 +187,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
 
         let config = WKWebViewConfiguration()
         config.userContentController.add(bridge, name: "bridge")
+        config.mediaTypesRequiringUserActionForPlayback = []
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = self
         webView.setValue(false, forKey: "drawsBackground")
