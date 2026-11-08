@@ -94,12 +94,16 @@ export async function loadTracks() {
   });
 }
 
+let libLoading = null;
 export async function ensureLibrary() {
   if (ui.libIndex) return ui.libIndex;
-  await task('Reading your library', async () => {
-    ui.libIndex = await music('libraryIndex');
-  });
-  return ui.libIndex;
+  if (!libLoading) {
+    libLoading = music('libraryIndex')
+      .then((lib) => { ui.libIndex = lib; return lib; })
+      .catch((e) => { notify(e.message, 'error'); return null; })
+      .finally(() => { libLoading = null; });
+  }
+  return libLoading;
 }
 
 // Keep playlist rows and library index in step after a BPM changes.
