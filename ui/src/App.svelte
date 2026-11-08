@@ -5,6 +5,7 @@
   import PlaylistView from './PlaylistView.svelte';
   import MatchPanel from './MatchPanel.svelte';
   import SessionView from './SessionView.svelte';
+  import FindView from './FindView.svelte';
 
   let search = $state('');
   let showSettings = $state(false);
@@ -59,6 +60,9 @@
       <span>BPM Playlists</span>
     </div>
 
+    <button class="nav" class:active={ui.view === 'find'} onclick={() => { ui.view = 'find'; ui.seed = null; }}>
+      <span class="nav-icon">♩</span> Find by BPM
+    </button>
     <button class="nav" class:active={ui.view === 'session'} onclick={() => { ui.view = 'session'; ui.seed = null; }}>
       <span class="nav-icon">◎</span> Build a session
     </button>
@@ -85,12 +89,14 @@
   </aside>
 
   <main class="main">
-    {#if ui.view === 'session'}
+    {#if ui.view === 'find'}
+      <FindView />
+    {:else if ui.view === 'session'}
       <SessionView />
     {:else if !ui.selectedId}
       <div class="empty">
         <h1>Pick a playlist</h1>
-        <p>Choose a playlist on the left to see each song's BPM and energy, or click <b>Build a session</b> to plan a run, class or party from your library.</p>
+        <p>Choose a playlist on the left to see each song's BPM and energy, type a tempo in <b>Find by BPM</b>, or click <b>Build a session</b> to plan a run, class or party from your library.</p>
       </div>
     {:else}
       <PlaylistView />

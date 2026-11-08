@@ -25,6 +25,8 @@ Set the length and target BPM, choose which playlists and genres to draw from, a
 
 Where your library can't fill a segment, the app shows a gap and can **find songs to add**: top songs by artists similar to what you already have, analyzed and kept only when the tempo and energy fit. **Open** shows the song in Apple Music; click **+** there to add it.
 
+**Find by BPM.** Type a tempo and see every song in your library near it, with the songs you've favorited and play most at the top. Play any of them, add a selection to a playlist, or create a "BPM 124" playlist in one click.
+
 **Playlists.** Open any playlist to see each song's BPM, energy and mood. Type a BPM to correct one. **Build activity playlists** splits a playlist into Relax, Yoga, Walk, Workout, Run and HIIT by BPM. **Match** on any song builds a playlist of songs within a few BPM, suggests similar songs from your library, and finds new ones online.
 
 ## Install

@@ -256,8 +256,13 @@ const ops = {
     const genres = safeBulk(() => ts.genre(), n, '');
     const bpms = safeBulk(() => ts.bpm(), n, 0);
     const durs = safeBulk(() => ts.duration(), n, 0);
+    const plays = safeBulk(() => ts.playedCount(), n, 0);
+    const ratings = safeBulk(() => ts.rating(), n, 0);
+    let favs = safeBulk(() => ts.favorited(), n, null);
+    if (favs[0] === null) favs = safeBulk(() => ts.loved(), n, false);
     return ids.map((id, i) => ({
-      id, name: names[i], artist: artists[i], genre: genres[i], bpm: bpms[i] || 0, duration: Math.round(durs[i] || 0)
+      id, name: names[i], artist: artists[i], genre: genres[i], bpm: bpms[i] || 0, duration: Math.round(durs[i] || 0),
+      plays: plays[i] || 0, rating: ratings[i] || 0, fav: !!favs[i]
     }));
   },
 

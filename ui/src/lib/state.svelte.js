@@ -20,7 +20,8 @@ export const ui = $state({
     perSource: true,
     activities: structuredClone(DEFAULT_ACTIVITIES)
   },
-  view: 'playlist', // playlist | session
+  view: 'playlist', // playlist | session | find
+  findBpm: 120,
   playlists: [],
   selectedId: null,
   tracks: [],

@@ -219,3 +219,7 @@ label.rec { cursor: pointer; }
 .bpm.unsure { border-style: dashed; border-color: var(--warn); }
 th.playcol, td.playcol { width: 32px; padding-right: 0; }
 tr.playing td.title, li.playing .rec-title { color: var(--accent); }
+.nav { width: 100%; text-align: left; display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 7px; background: transparent; border-color: transparent; font-weight: 500; }
+.nav:hover { background: var(--hover); }
+.nav.active { background: var(--sel); color: var(--accent); }
+.nav-icon { width: 18px; text-align: center; color: var(--accent); }
