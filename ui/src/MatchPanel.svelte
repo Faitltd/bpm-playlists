@@ -16,15 +16,17 @@
 
   let picked = new SvelteSet();
   let addTarget = $state(null);
-  let online = $state({ state: 'idle', list: [], done: 0, total: 0, error: '', forId: null });
+  let online = $state({ state: 'idle', list: [], done: 0, total: 0, usable: 0, error: '', forId: null });
   let artists = $state({ state: 'idle', list: [], error: '' }); // similar artists step
   let pickedArtists = new SvelteSet();
 
-  // Seeds: this song's artist, then the most common other artists in the playlist being added to.
+  // Seeds: this song's artist, plus (optionally) the most common other artists in the playlist.
+  let usePlaylistArtists = $state(false);
   const seedArtists = $derived.by(() => {
+    if (!usePlaylistArtists) return [seed.artist].filter(Boolean);
     const counts = new Map();
     for (const t of ui.tracks) if (t.artist && t.artist !== seed.artist) counts.set(t.artist, (counts.get(t.artist) || 0) + 1);
-    const others = [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([a]) => a).slice(0, 3);
+    const others = [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([a]) => a).slice(0, 2);
     return [seed.artist, ...others].filter(Boolean);
   });
   const libArtists = $derived(new Set((ui.libIndex || []).map((t) => simple(t.artist))));
@@ -44,7 +46,7 @@
   function toggleArtist(id) { pickedArtists.has(id) ? pickedArtists.delete(id) : pickedArtists.add(id); }
 
   $effect(() => { if (!addTarget) addTarget = ui.selectedId; });
-  $effect(() => { seed.id; picked.clear(); pickedArtists.clear(); artists = { state: 'idle', list: [], error: '' }; online = { state: 'idle', list: [], done: 0, total: 0, error: '', forId: null }; });
+  $effect(() => { seed.id; picked.clear(); pickedArtists.clear(); artists = { state: 'idle', list: [], error: '' }; online = { state: 'idle', list: [], done: 0, total: 0, usable: 0, error: '', forId: null }; });
 
   const dist = (b) => Math.abs(effectiveBpm(b, seed.bpm, ui.settings.halfDouble) - seed.bpm);
 
@@ -83,13 +85,13 @@
 
   async function findOnline() {
     const forId = seed.id;
-    online = { state: 'loading', list: [], done: 0, total: 0, error: '', forId };
+    online = { state: 'loading', list: [], done: 0, total: 0, usable: 0, error: '', forId };
     try {
       const chosen = artists.list.filter((a) => pickedArtists.has(a.id));
       const list = await recommend({
         targetBpm: seed.bpm, targetEnergy: seedEnergy, seedArtists, artists: chosen.length ? chosen : null,
         tolerance: ui.settings.tolerance, energyTol: ui.settings.energyTol, halfDouble: ui.settings.halfDouble, library: ui.libIndex || []
-      }, (l, done, total) => { if (online.forId === forId) online = { ...online, list: l, done, total }; }, () => online.forId !== forId);
+      }, (l, done, total, usable) => { if (online.forId === forId) online = { ...online, list: l, done, total, usable }; }, () => online.forId !== forId);
       if (online.forId === forId) online = { ...online, state: 'done', list };
     } catch (e) {
       if (online.forId === forId) online = { ...online, state: 'error', error: e.message };
@@ -138,8 +140,8 @@
     <section>
       <h3>Similar artists {#if artists.state === 'done'}<span class="count">{pickedArtists.size} of {artists.list.length}</span>{/if}</h3>
       {#if artists.state === 'idle'}
-        <button class="block" onclick={findArtists}>Find similar artists</button>
-        <p class="hint">Based on {seedArtists.join(', ')}.</p>
+        <button class="block" onclick={findArtists}>Find artists like {seed.artist}</button>
+        <label class="check hint"><input type="checkbox" bind:checked={usePlaylistArtists} /> Also use this playlist's main artists</label>
       {:else if artists.state === 'loading'}
         <p class="hint">Looking up artists like {seedArtists[0]}...</p>
       {:else if artists.state === 'error'}
@@ -173,13 +175,14 @@
         {#if online.list.length}
           <div class="recs">
             {#each online.list as r (r.key)}
-              <SongRow previewKey={r.key} previewUrl={r.url} title={r.title} sub={r.artist} bpm={r.bpm} energy={r.energy}>
+              <SongRow previewKey={r.key} previewUrl={r.url} title={r.title} sub={r.artist + (r.fit ? '' : ' · near miss')} bpm={r.bpm} energy={r.energy}>
                 <button class="small" onclick={() => openInAppleMusic(r.title, r.artist)} title="Open in Apple Music to add it">Open</button>
               </SongRow>
             {/each}
           </div>
+          {#if online.state === 'done'}<p class="hint">{online.list.filter((r) => r.fit).length} fit the tempo and energy; near misses are listed after them.</p>{/if}
         {:else if online.state === 'done'}
-          <p class="hint">Nothing fit. Tick more artists or widen the ranges in Settings.</p>
+          <p class="hint">Checked {online.total} songs{online.usable < online.total ? ', ' + online.usable + ' could be analyzed' : ''}. Nothing to show. Tick more artists.</p>
         {/if}
         {#if online.state === 'done'}
           <button class="block" onclick={findOnline} disabled={!pickedArtists.size}>Search again</button>
