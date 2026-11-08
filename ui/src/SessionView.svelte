@@ -68,6 +68,7 @@
       });
   });
   const poolStats = $derived(stats(pool.map((t) => t.id)));
+  const poolTodo = $derived(pool.filter((t) => !rec(t.id) || (rec(t.id).miss && !t.bpm)));
   const genreCounts = $derived.by(() => {
     const lib = ui.libIndex || [];
     const m = new Map();
@@ -84,7 +85,7 @@
   }
 
   async function analyzePool() {
-    const list = pool.filter((t) => !rec(t.id));
+    const list = poolTodo;
     await task('Analyzing songs', async () => {
       ui.progress = { done: 0, total: list.length };
       await analyzeMany(list, (done, total) => (ui.progress = { done, total }));
@@ -241,10 +242,11 @@
       <span class="muted">Reading library...</span>
     {:else}
       <span><b>{pool.length}</b> songs in the pool · {poolStats.analyzed} analyzed
-        {#if poolStats.todo}· <span class="warn">{poolStats.todo} not yet</span>{/if}</span>
-      {#if poolStats.todo}
-        <button class="small" onclick={analyzePool} disabled={!!ui.busy}>Analyze {poolStats.todo}</button>
-        <span class="hint">About {Math.ceil(poolStats.todo * 3 / 60)} min. Songs without analysis are placed by BPM only.</span>
+        {#if poolTodo.length}· <span class="warn">{poolTodo.length} not yet</span>{/if}
+        {#if poolStats.missing && !poolTodo.length}· {poolStats.missing} not found online{/if}</span>
+      {#if poolTodo.length}
+        <button class="small" onclick={analyzePool} disabled={!!ui.busy}>Analyze {poolTodo.length}</button>
+        <span class="hint">About {Math.ceil(poolTodo.length * 3 / 60)} min. Songs without analysis are placed by BPM only.</span>
       {/if}
     {/if}
     <span class="spacer"></span>

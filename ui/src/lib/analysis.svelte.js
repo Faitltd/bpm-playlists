@@ -110,12 +110,15 @@ export async function analyzeTrack(t) {
       r = { ...(feat || {}), tempo: d.tempo, conf: d.conf, recco: feat?.tempo || 0, src: previews.map((p) => p.source).join('+') };
       if (!r.tempo) r = null;
     }
-    if (!r && t.canMeasure) {
-      const d = await music('detect', { id: t.id });
-      if (d.bpm) r = { tempo: d.bpm, conf: 'medium', src: 'file' };
-    }
   } catch (e) {
     r = null;
+  }
+  if (!r) {
+    // Not online (your own recordings, unreleased tracks): measure the file itself if there is one.
+    try {
+      const d = await music('detect', { id: t.id });
+      if (d.bpm) r = { tempo: d.bpm, conf: 'medium', src: 'file' };
+    } catch (e) { /* streaming-only or no file */ }
   }
   if (!r) r = { tempo: 0, miss: true };
   r.at = Date.now();
