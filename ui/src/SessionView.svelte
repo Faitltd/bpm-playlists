@@ -1,4 +1,5 @@
 <script>
+  import { untrack } from 'svelte';
   import { ui, task, notify, ensureLibrary, reloadPlaylistsQuiet, fmtTime } from './lib/state.svelte.js';
   import { music } from './lib/bridge.js';
   import { rec, energy10, analyzeMany, stats } from './lib/analysis.svelte.js';
@@ -40,7 +41,7 @@
     if (!name || PRESETS.some((x) => name === 'Session: ' + x.name)) name = 'Session: ' + p.name;
   }
 
-  $effect(() => { ensureLibrary(); });
+  $effect(() => { untrack(() => ensureLibrary()); });
   $effect(() => { if (!name) name = 'Session: ' + preset.name; });
 
   // Load track ids for chosen source playlists.
@@ -243,7 +244,7 @@
         {#if poolStats.todo}· <span class="warn">{poolStats.todo} not yet</span>{/if}</span>
       {#if poolStats.todo}
         <button class="small" onclick={analyzePool} disabled={!!ui.busy}>Analyze {poolStats.todo}</button>
-        <span class="hint">About {Math.ceil(poolStats.todo * 1.2 / 60)} min. Songs without analysis are placed by BPM only.</span>
+        <span class="hint">About {Math.ceil(poolStats.todo * 3 / 60)} min. Songs without analysis are placed by BPM only.</span>
       {/if}
     {/if}
     <span class="spacer"></span>

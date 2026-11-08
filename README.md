@@ -40,7 +40,7 @@ Requires macOS 12 or later. No accounts or API keys.
 ## First run
 
 1. Click **Build a session** in the sidebar.
-2. Click **Analyze** next to the song count. A 600-song library takes about 15 minutes. You can keep using your Mac.
+2. Click **Analyze** next to the song count. A 600-song library takes 20 to 30 minutes. You can keep using your Mac; the app keeps going in the background.
 3. Pick a preset, set the length and target BPM, and click **Build session**.
 4. Click **Create in Music**. The playlist appears in Music's sidebar and syncs to your phone.
 
